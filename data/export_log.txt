@@ -1,0 +1,10 @@
+angleref_mean_s0: val max|dp| 1.2e-07, test max|dp| 1.2e-07, n2 max|dp| 1.2e-07, n3 max|dp| 4.5e-07, n4 max|dp| 1.2e-07, n5 FNR 8.00 (stored 8.00), n6 FNR 8.13 (stored 8.13)
+angleref_mean_s1: val max|dp| 1.2e-07, test max|dp| 1.2e-07, n2 max|dp| 1.2e-07, n3 max|dp| 1.8e-07, n4 max|dp| 1.8e-07, n5 FNR 7.82 (stored 7.82), n6 FNR 7.55 (stored 7.55)
+angleref_mean_s2: val max|dp| 1.2e-07, test max|dp| 1.2e-07, n2 max|dp| 1.2e-07, n3 max|dp| 2.4e-07, n4 max|dp| 1.2e-07, n5 FNR 8.30 (stored 8.30), n6 FNR 7.94 (stored 7.94)
+angleref_mean_s3: val max|dp| 1.8e-07, test max|dp| 1.2e-07, n2 max|dp| 1.2e-07, n3 max|dp| 3.9e-07, n4 max|dp| 1.2e-07, n5 FNR 7.25 (stored 7.25), n6 FNR 7.29 (stored 7.29)
+angleref_mean_s4: val max|dp| 1.2e-07, test max|dp| 1.2e-07, n2 max|dp| 1.2e-07, n3 max|dp| 3.0e-07, n4 max|dp| 1.2e-07, n5 FNR 6.49 (stored 6.49), n6 FNR 6.70 (stored 6.70)
+scores_main.npz: 363300 samples, 5 runs; embed (363300, 128)
+B_holdout_s0: val n=34800 FNR 1.99 (stored 1.99), test n=34800 FNR 1.91 (stored 1.91), holdout n=60000 FNR 5.62 (stored 5.62), holdout_test n=6000 FNR 6.26 (stored 6.26)
+B_holdout_s1: val n=34800 FNR 1.99 (stored 1.99), test n=34800 FNR 1.81 (stored 1.81), holdout n=60000 FNR 4.86 (stored 4.86), holdout_test n=6000 FNR 5.05 (stored 5.05)
+B_holdout_s2: val n=34800 FNR 2.01 (stored 1.99), test n=34800 FNR 1.99 (stored 1.99), holdout n=60000 FNR 5.17 (stored 5.17), holdout_test n=6000 FNR 5.35 (stored 5.35)
+scores_holdout.npz: 135600 samples, held-out lines [3, 4, 5, 7, 32]
