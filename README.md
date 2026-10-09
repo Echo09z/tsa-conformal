@@ -4,7 +4,7 @@
 
 A transient stability classifier is usually deployed with a threshold chosen on held-out data so that at most 2 % of the unstable cases are missed. That rule is class-conditional split conformal prediction on the unstable class. Its miss-rate statement therefore holds for new cases that are exchangeable with the calibration cases, and only for those. This repository measures the statement on the IEEE 39-bus system with a set-based generator response model [2] and test layers with up to six line outages.
 
-The statement holds on the main layer: 1.97 % missed at α = 2 %. It fails on single-line-outage topologies left out of training (5.4 %) and on the N-4 to N-6 layers (7.4–7.8 %). Two remedies, following Alcántara & Chatzivasileiadis [1], each restore it at a measurable price. Calibrating on each layer brings the miss rate back to 2.0 %, but it needs labelled cases from that layer and raises false alarms to 17–24 %. Adding two-sided prediction sets keeps both error rates at about 2 % instead, and sends 15–20 % of the N-4 to N-6 cases to time-domain simulation.
+The statement holds on the main layer: 1.97 % missed at α = 2 %. It fails on single-line-outage topologies left out of training (5.4 %) and on the N-4 to N-6 layers (7.4–7.8 %). Two remedies, following Alcántara & Chatzivasileiadis [1], each restore it at a measurable price. Calibrating on each layer brings the miss rate back to 2.0 %, but it needs labelled cases from that layer and raises false alarms to 17–24 %. Adding two-sided prediction sets keeps both error rates at about 2 % instead, and sends 15–20 % of the N-4 to N-6 cases to time-domain simulation. Kernel-weighted calibration on the model's own embedding, the second remedy in [1], does not help here: one lower threshold shared by all cases reaches the same miss rates with fewer false alarms.
 
 ![Miss rate by layer](results/fig1_miss_by_layer.png)
 
@@ -48,7 +48,7 @@ Each case has:
 - the simulator criterion violated first;
 - the pre-fault angle spread.
 
-The fields are documented in `src/tsa_conformal/data.py`.
+The fields are documented in `src/tsa_conformal/data.py`. `embed_pca32_s0.npz` holds the model's mean-pooled token embedding for seed 0, which is the input of its final classifier. It is projected onto the first 32 principal components (99.7 % of the variance) by `tools/pca_embedding.py`, and its rows follow `scores_main.npz`.
 
 | set | cases | operating points | topologies | unstable |
 |---|---|---|---|---|
@@ -72,6 +72,7 @@ The simulated dataset, the simulator and the model code are not part of this rep
 - **Exchangeability unit.** Cases cluster: each main-layer operating point has 20 faults, and each N-k topology has 30 operating points with 10 faults each. Calibration / test splits are therefore drawn by operating point on the main layer and by topology in the N-k layers, with 50 random splits per seed (20 for A3).
 - **Two calibration variants.** Using all cases of the calibration clusters gives an approximate statement. The *strict* variant takes one random unstable case per calibration cluster; that calibration set is exchangeable with one random case of a new cluster, which makes the finite-sample statement exact. Both are reported.
 - **Calibration-conditional threshold** (`alarm_threshold_conditional`). The statements above hold on average over the calibration draw. The conditional version [7] bounds instead the probability that a single calibration ends above α: P(miss rate > α) ≤ δ. It places the threshold at the (c+1)-th smallest calibration value, where c is the largest count with P(Binomial(n, α) ≤ c) ≤ δ. It needs n ≥ log δ / log(1 − α) exchangeable values: 149 at α = 2 %, δ = 5 %.
+- **Kernel-weighted threshold** (`kcp.py`, after [1], v2). Each unstable calibration case gets the weight exp(−d²/h²), where d is its distance to the test case in a scenario representation and h² is the squared distance of the 20th nearest case. The alarm threshold is the weighted quantile of the calibration probabilities. When the effective sample size falls below 5, the uniform threshold is used instead.
 - **Uncertainty.** The spread over seeds and random splits is reported throughout. Miss rates on whole layers also get a topology-level bootstrap.
 
 Every threshold, α and stratification is fixed on the calibration part; the test part is never used to choose anything.
@@ -154,12 +155,39 @@ The calibration-conditional threshold is applied with δ = 5 %, using the same r
 - **Counting faults overstates the evidence.** Treating every fault as an independent calibration value gives a binomial margin that is too thin. With the conditional threshold, single calibrations still exceed α in 12 % of the draws on the main layer and in 18–36 % on the N-2 to N-6 layers. The faults of one operating point or topology are correlated, so the effective sample size is closer to the number of clusters.
 - **Per N-k layer the reliable version is expensive.** At α = 2 % it needs at least 149 topologies of the layer, more than half of any layer here holds. With 150 calibration topologies, the share of single calibrations above α comes close to δ: 4–6 % for the per-topology miss rate, which is the quantity the statement refers to, and 3–8 % per case. The test part has only 15–49 topologies, so these shares carry about one point of evaluation noise. The threshold, however, lands on the smallest per-topology value: false alarms reach 24 % (N-2), 39 % (N-3), 52 % (N-4) and 58–59 % (N-5, N-6). At α = 5 % the same procedure costs 6–27 % false alarms, and at α = 10 % 2–13 %. For deep outage layers, a statement about one calibration is affordable only at a looser α.
 
+### B3. Kernel-weighted calibration on the model's embedding is beaten by one lower threshold
+
+`experiments/b3_kcp.py` → `results/b3_summary.md` (seed 0, five random splits, α = 2 %)
+
+KCP is tested with two scenario representations:
+
+- **Embedding.** The model's own embedding, which is available online from the PMU responses.
+- **Topology.** The outage vector of the post-fault network, which, like own-layer calibration, needs the topology at the decision.
+
+Every result is compared with a single threshold that gives the same miss rate.
+
+- **Embedding, main-layer calibration.** KCP lowers the N-4 miss rate to 1.1 % without any N-4 data, but it alarms on 34 % of the stable main-test cases and 56 % of the stable N-4 cases. The threshold follows each case's own score. The reason is that the embedding nearly determines the score: two principal components carry 97.5 % of its variance. Localizing the unstable-class quantile in it therefore conditions on the score itself. In the regression setting of [1], the kernel acts on residuals, which the embedding does not determine.
+- **It is dominated.** One threshold shared by all sets, placed to give KCP's N-4 miss rate, has fewer false alarms on N-4 and both fewer misses and fewer false alarms on the main test. Larger k_nn moves KCP toward a single threshold but never below it. With k_nn = 20, KCP's false-alarm rate on the main test also ranges from 19 to 54 % across the five calibration draws.
+
+  | embedding KCP, main-layer calibration | main test: miss / false alarm | N-4: miss / false alarm | shared threshold | main test, shared | N-4, shared |
+  |---|---|---|---|---|---|
+  | k_nn = 20 (as in [1]) | 1.18 / 33.5 | 1.14 / 55.9 | p ≥ 0.045 | 0.13 / 7.1 | 1.14 / 22.1 |
+  | k_nn = 100 | 1.39 / 8.6 | 1.87 / 25.8 | p ≥ 0.048 | 0.28 / 5.7 | 1.86 / 17.7 |
+  | k_nn = 500 | 1.95 / 3.2 | 5.17 / 10.2 | p ≥ 0.124 | 1.00 / 2.7 | 5.17 / 8.8 |
+  | k_nn = 2000 | 1.60 / 3.0 | 5.40 / 9.3 | p ≥ 0.134 | 1.10 / 2.6 | 5.39 / 8.4 |
+
+- **Topology.**
+  - *Main-layer calibration.* The outage kernel spreads its weight over the N-1 topologies and reproduces the single threshold: 7.47 % missed at N-4, against 7.43 %.
+  - *All layers pooled, no layer labels.* The kernel localizes onto topologies with overlapping outages. At N-2 to N-6 it misses 1.8–2.9 % with 5.3–19.4 % false alarms. This is close to one threshold per layer (1.9–2.2 % missed, 5.1–22.8 % false alarms) and up to 0.4 points below the single-threshold reference at the same miss rate.
+  - In effect, this is a soft form of stratification, and like stratification it needs the outages at the decision.
+- **A practical reading.** For N-4 to N-6, own-layer calibration places the alarm threshold near p = 0.05 (A3). A single threshold at that level, applied to every case, needs neither the layer nor a kernel. It misses 0.3 % on the main test and 1.9 % at N-4, with 5.7 % and 17.7 % false alarms. Setting it still requires labelled cases from the deepest layer the operator wants covered.
+
 ## Reproduce
 
 ```bash
 uv sync
 uv run pytest                 # quantile edge cases, marginal and conditional miss-rate bounds on synthetic data, set construction
-./experiments/run_all.sh      # all tables and figures in results/ (about one minute)
+./experiments/run_all.sh      # all tables and figures in results/ (about ten minutes, most of it B3)
 ```
 
 ## Limitations
@@ -167,13 +195,14 @@ uv run pytest                 # quantile edge cases, marginal and conditional mi
 - **Scope.** One test system (IEEE 39-bus), one simulator and one model architecture (five seeds; three for the held-out N-1 model).
 - **Best case for own-layer calibration.** Topologies within a layer are drawn at random by the same generator, so the per-layer calibration results are a best case. A real topology change is not a random draw from a known layer.
 - **Correlated cases.** Faults on the same operating point or topology are correlated. The main results use all cases of the calibration clusters, so they are approximate; the strict variant is reported alongside.
+- **Own-layer calibration needs the outage order.** Assigning a test case to its layer requires knowing, at the decision, how many lines are out. The model's input contract [2] does not assume this, because breaker states may arrive late or wrongly. A trust layer that stratifies by layer therefore reintroduces the topology dependency that the model avoids.
 - **Labelled cases needed.** Own-layer calibration needs labelled, that is simulated, cases from the layer. This repository measures how many are needed but not how to obtain them online.
 - **Marginal statement.** A1–A3 are marginal over the calibration draw: a single calibration exceeds α about half the time. The conditional version (A4) is exact only with one fault per cluster. Per N-k layer at α = 2 % it needs at least 149 of the layer's 165–199 topologies, and then raises false alarms to 24–59 %.
 - **Referral not evaluated.** Referral assumes that time-domain simulation is available and returns in time.
 
 ## Future work
 
-- Kernel-weighted conformal prediction (the KCP of [1], v2) on the model's mean-pooled embedding, to adapt the threshold per case without stratifying by layer.
+- A scenario representation that is available online but does not determine the score, or local recalibration of the probability of instability itself, as the localized counterpart of KCP for a classifier (B3).
 - Missing PMUs as a second kind of shift.
 - Adaptive conformal inference [6] for online topology changes.
 - Cluster-aware calibration that uses all faults of a cluster without counting them as independent, for example the pooling methods for two-layer hierarchical data [8].
