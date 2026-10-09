@@ -58,6 +58,37 @@ def stable_threshold(p_stable: np.ndarray, alpha: float) -> float:
     return conformal_quantile(p_stable, alpha)
 
 
+def max_misses_conditional(n: int, alpha: float, delta: float) -> int:
+    """Largest c with P(Binomial(n, alpha) <= c) <= delta, or -1 if even c = 0 exceeds delta.
+
+    With the threshold at the (c + 1)-th smallest of n exchangeable calibration values, the miss rate conditional on
+    the calibration set is Beta(c + 1, n - c) distributed, and P(miss rate > alpha) = P(Binomial(n, alpha) <= c)
+    (Vovk, 2013). Summed in log space so that large n does not underflow the first terms."""
+    if not 0.0 < alpha < 1.0 or not 0.0 < delta < 1.0:
+        raise ValueError(f"need 0 < alpha, delta < 1, got alpha={alpha}, delta={delta}")
+    log_pmf, log_ratio = n * math.log1p(-alpha), math.log(alpha / (1.0 - alpha))
+    cdf = 0.0
+    for c in range(n + 1):
+        cdf += math.exp(log_pmf)
+        if cdf > delta:
+            return c - 1
+        log_pmf += math.log((n - c) / (c + 1)) + log_ratio if c < n else 0.0
+    return n
+
+
+def min_calibration_size_conditional(alpha: float, delta: float) -> int:
+    """Smallest n with a finite calibration-conditional threshold: (1 - alpha)^n <= delta."""
+    return math.ceil(math.log(delta) / math.log1p(-alpha) - 1e-9)
+
+
+def alarm_threshold_conditional(p_unstable: np.ndarray, alpha: float, delta: float) -> float:
+    """Alarm threshold whose miss rate exceeds alpha with probability at most delta over the calibration draw
+    (training-conditional, or PAC, version of alarm_threshold). -inf when the calibration set is too small."""
+    p = np.sort(np.asarray(p_unstable, dtype=np.float64))
+    c = max_misses_conditional(len(p), alpha, delta)
+    return -math.inf if c < 0 else float(p[c])
+
+
 def paper_threshold(p_unstable: np.ndarray, target_fnr: float) -> float:
     """The paper's validation rule: the highest threshold whose miss rate on the given unstable samples does not
     exceed target_fnr (at most floor(target_fnr * n) samples below it). Differs from alarm_threshold by at most one

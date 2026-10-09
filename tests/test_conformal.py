@@ -123,3 +123,44 @@ def test_cluster_bootstrap_brackets_the_estimate():
     x = rng.normal(size=1000) + np.repeat(rng.normal(size=100), 10)
     lo, hi = cluster_bootstrap(lambda i: x[i].mean(), clusters, 500, rng)
     assert lo < x.mean() < hi
+
+
+def test_max_misses_conditional_matches_exact_binomial():
+    from tsa_conformal.conformal import max_misses_conditional
+    for n, alpha, delta in [(50, 0.1, 0.05), (300, 0.02, 0.05), (1000, 0.05, 0.1), (149, 0.02, 0.05)]:
+        cdf = np.cumsum([math.comb(n, k) * alpha ** k * (1 - alpha) ** (n - k) for k in range(n + 1)])
+        expected = int(np.flatnonzero(cdf <= delta)[-1]) if cdf[0] <= delta else -1
+        assert max_misses_conditional(n, alpha, delta) == expected
+
+
+def test_conditional_minimum_calibration_size():
+    from tsa_conformal.conformal import alarm_threshold_conditional, min_calibration_size_conditional
+    n = min_calibration_size_conditional(0.02, 0.05)
+    assert n == 149
+    p = np.linspace(0.3, 1, 200)
+    assert alarm_threshold_conditional(p[:n - 1], 0.02, 0.05) == -math.inf
+    assert alarm_threshold_conditional(p[:n], 0.02, 0.05) == p[0]
+    # large n: no underflow of the first binomial terms
+    assert alarm_threshold_conditional(np.random.default_rng(0).uniform(size=60000), 0.1, 0.05) > 0
+
+
+def test_conditional_threshold_is_below_the_marginal_one():
+    from tsa_conformal.conformal import alarm_threshold_conditional
+    p = np.random.default_rng(8).uniform(size=2000)
+    for alpha in (0.02, 0.05, 0.1):
+        assert alarm_threshold_conditional(p, alpha, 0.05) <= alarm_threshold(p, alpha)
+
+
+def test_conditional_threshold_exceeds_alpha_rarely_on_exchangeable_data():
+    """P(miss rate > alpha) over calibration draws: about one half for the marginal threshold, <= delta for the
+    calibration-conditional one. The miss rate of a threshold is known exactly here: the uniform CDF."""
+    from tsa_conformal.conformal import alarm_threshold_conditional
+    rng = np.random.default_rng(9)
+    alpha, delta, n, trials = 0.05, 0.1, 500, 4000
+    marginal, conditional = [], []
+    for _ in range(trials):
+        cal = rng.uniform(size=n)
+        marginal.append(alarm_threshold(cal, alpha) > alpha)
+        conditional.append(alarm_threshold_conditional(cal, alpha, delta) > alpha)
+    assert 0.3 < np.mean(marginal) < 0.6
+    assert np.mean(conditional) <= delta + 3 * np.sqrt(delta * (1 - delta) / trials)
