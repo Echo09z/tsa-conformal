@@ -4,7 +4,7 @@
 
 A transient stability classifier is usually deployed with a threshold chosen on held-out data so that at most 2 % of the unstable cases are missed. That rule is class-conditional split conformal prediction on the unstable class. Its miss-rate statement therefore holds for new cases that are exchangeable with the calibration cases, and only for those. This repository measures the statement on the IEEE 39-bus system with a set-based generator response model [2] and test layers with up to six line outages.
 
-The statement holds on the main layer: 1.97 % missed at α = 2 %. It fails on single-line-outage topologies left out of training (5.4 %) and on the N-4 to N-6 layers (7.4–7.8 %). Two remedies, following Alcántara & Chatzivasileiadis [1], each restore it at a measurable price. Calibrating on each layer brings the miss rate back to 2.0 %, but it needs labelled cases from that layer and raises false alarms to 17–24 %. Adding two-sided prediction sets keeps both error rates at about 2 % instead, and sends 15–20 % of the N-4 to N-6 cases to time-domain simulation. Kernel-weighted calibration on the model's own embedding, the second remedy in [1], does not help here: one lower threshold shared by all cases reaches the same miss rates with fewer false alarms.
+The statement holds on the main layer: 1.97 % missed at α = 2 %. It fails on single-line-outage topologies left out of training (5.4 %) and on the N-4 to N-6 layers (7.4–7.8 %). Two remedies, following Alcántara & Chatzivasileiadis [1], each restore it at a measurable price. Calibrating on each layer brings the miss rate back to 2.0 %, but it needs labelled cases from that layer and raises false alarms to 17–24 %. Adding two-sided prediction sets keeps both error rates at about 2 % instead, and sends 15–20 % of the N-4 to N-6 cases to time-domain simulation. Kernel-weighted calibration on the model's own embedding, the second remedy in [1], does not help here: one lower threshold shared by all cases reaches the same miss rates with fewer false alarms. Missing PMUs behave differently from topology changes. They are observed at the decision, and calibrating for them only means masking the existing calibration cases, so recalibration restores the miss rate on the main layer without new simulation.
 
 ![Miss rate by layer](results/fig1_miss_by_layer.png)
 
@@ -37,6 +37,7 @@ The two thresholds differ by at most one order statistic (`tests/test_conformal.
 
 - **`scores_main.npz`**: 363,300 cases, five trained seeds. Covers the validation set, the main test set and the N-2 to N-6 layers.
 - **`scores_holdout.npz`**: 135,600 cases, three seeds. Comes from the same model trained without five N-1 topologies (outaged lines 3, 4, 5, 7, 32).
+- **`scores_missing.npz`**: the validation set, the main test set and N-4 (139,800 cases, five seeds), each under six persistent PMU losses. These are the first three random sets of three and of five missing generator PMUs from the model's robustness evaluation, exported by `tools/export_missing.py`.
 
 Each case has:
 
@@ -182,6 +183,29 @@ Every result is compared with a single threshold that gives the same miss rate.
   - In effect, this is a soft form of stratification, and like stratification it needs the outages at the decision.
 - **A practical reading.** For N-4 to N-6, own-layer calibration places the alarm threshold near p = 0.05 (A3). A single threshold at that level, applied to every case, needs neither the layer nor a kernel. It misses 0.3 % on the main test and 1.9 % at N-4, with 5.7 % and 17.7 % false alarms. Setting it still requires labelled cases from the deepest layer the operator wants covered.
 
+### B2. Missing PMUs: observed at the decision, and calibrated without new simulation
+
+`experiments/b2_missing_pmu.py` → `results/b2_summary.md` (five seeds × 20 splits, α = 2 %)
+
+A missing PMU delivers nothing: the generator's channels are zero for every case, as in the robustness evaluation of [2]. The threshold is either kept as calibrated without missing PMUs, or recalibrated on a random half of the main-test operating points under the same missing PMUs. The paper's own recalibration on the validation set under the same missing PMUs gives similar N-4 numbers: 5.5–7.4 % missed, 8.6–47 % false alarms.
+
+| missing generators | main: miss, as deployed | main, recalibrated: false alarm | main, two-sided: referred | N-4: miss, recalibrated on main | N-4 own layer: false alarm | N-4 own layer, two-sided: referred |
+|---|---|---|---|---|---|---|
+| none | 2.03 | 1.60 | 0.00 | 7.44 | 17.3 | 14.9 |
+| {0, 4, 7} | 2.20 | 2.55 | 0.60 | 6.69 | 22.7 | 19.7 |
+| {1, 4, 6} | 2.73 | 2.73 | 0.83 | 7.13 | 22.2 | 19.2 |
+| {2, 7, 8} | 3.29 | 4.51 | 2.57 | 6.50 | 29.8 | 25.7 |
+| {0, 1, 2, 4, 9} | 15.37 | 28.95 | 24.96 | 6.14 | 71.2 | 61.4 |
+| {2, 3, 4, 6, 9} | 4.96 | 5.73 | 3.82 | 5.47 | 32.2 | 28.3 |
+| {0, 1, 6, 7, 8} | 4.34 | 8.66 | 6.74 | 6.08 | 40.5 | 34.4 |
+
+All values are %. Every recalibrated variant misses 2.0 % on the kind of cases it was calibrated for, and every two-sided variant also keeps false alarms there at 2.0 %.
+
+- **Missing PMUs alone.** The threshold calibrated without missing PMUs misses 2.2–3.3 % with three PMUs missing and 4.3–15.4 % with five. Recalibrating under the same missing PMUs restores 2.0 % for every set. The false-alarm rate it costs grows with the information lost: 2.6–4.5 % with three missing PMUs, 5.7–29 % with five.
+- **Two-sided sets.** These keep false alarms at 2.0 % and refer the difference to simulation. For example, with the worst set of five, the one-sided 29 % false alarms become 2 % false alarms plus 25 % referrals.
+- **Both shifts at once.** Recalibrating on the main layer under missing PMUs does not touch the topology part: N-4 still misses 5.5–7.1 %, about what it misses without missing PMUs (7.4 %). The two shifts are separate, and the calibration data must contain both. With N-4 calibration data under the same missing PMUs, the miss rate is 2.0 %, at 22–71 % false alarms or 19–61 % referrals.
+- **Why the two shifts differ in practice.** Which PMUs are missing is observed at the decision. Calibrating for a missing set needs no new simulation, only the existing calibration cases with the same channels zeroed. A calibration per missing set is therefore feasible online, while a calibration per topology needs both the topology and new simulated cases.
+
 ## Reproduce
 
 ```bash
@@ -203,7 +227,6 @@ uv run pytest                 # quantile edge cases, marginal and conditional mi
 ## Future work
 
 - A scenario representation that is available online but does not determine the score, or local recalibration of the probability of instability itself, as the localized counterpart of KCP for a classifier (B3).
-- Missing PMUs as a second kind of shift.
 - Adaptive conformal inference [6] for online topology changes.
 - Cluster-aware calibration that uses all faults of a cluster without counting them as independent, for example the pooling methods for two-layer hierarchical data [8].
 - The 118-bus system.
