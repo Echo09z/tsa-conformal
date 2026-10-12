@@ -12,10 +12,10 @@ Yuankang Li · October 2026 · IEEE 39-bus system · builds on the trustworthine
 
 **Findings** (α = 2 %, five trained seeds, test layers with up to six line outages):
 
-1. **The guarantee holds on training topologies and breaks under topology shift.** The model misses 1.97 % of unstable cases on the main layer, 5.4 % on unseen single-outage topologies, and 7.4–7.8 % at N-4 to N-6.
-2. **Per-layer calibration (SCP in [1]) restores it, at a price.** Every layer is back at 2.0 % missed. However, false alarms rise to 17–24 % at N-4 to N-6, and the operator must know the outage order at the decision.
+1. **The guarantee holds on training topologies and breaks under topology shift.** The model misses 1.97 % of unstable cases on the main layer, 5.4 % on held-out single-outage topologies, and 7.4–7.8 % at N-4 to N-6.
+2. **Per-layer calibration (stratified conformal prediction, SCP in [1]) restores it, at a price.** Every layer is back at 2.0 % missed. However, false alarms rise to 17–24 % at N-4 to N-6, and the operator must know the outage order at the decision.
 3. **Two-sided prediction sets turn false alarms into simulations.** Both error rates stay at 2 %, and 15–20 % of the N-4 to N-6 cases are referred to time-domain simulation. Referral concentrates on late instabilities: at N-4, 53 % of the unstable cases that lose synchronism more than 3 s after the decision are referred, against 0.9 % of those within 0.5 s.
-4. **Kernel weighting (KCP in [1]) does not help on this model's embedding.** It reaches 1.1 % missed at N-4 with 56 % false alarms, while one lower threshold reaches the same miss rate with 22 %. The embedding nearly determines the score, so localizing on it conditions on the score itself.
+4. **Kernel weighting (kernel-weighted conformal prediction, KCP in [1]) does not help on this model's embedding.** It reaches 1.1 % missed at N-4 with 56 % false alarms, while one lower threshold reaches the same miss rate with 22 %. The embedding nearly determines the score, so localizing on it conditions on the score itself.
 5. **Missing PMUs are a cheaper shift than topology changes.** The missing PMUs are known at the decision, so masking the existing calibration cases restores 2.0 % without new simulation.
 
 ![Miss rate by layer](results/fig1_miss_by_layer.png)
@@ -25,7 +25,7 @@ Yuankang Li · October 2026 · IEEE 39-bus system · builds on the trustworthine
 | evaluation layer | missed, main-layer calibration | missed, own-layer calibration | false alarms, own-layer calibration | referred to simulation, two-sided sets |
 |---|---|---|---|---|
 | main test | 1.97 | – | – | – |
-| unseen N-1 topologies | 5.42 | – | – | – |
+| held-out N-1 topologies | 5.42 | – | – | – |
 | N-2 | 4.35 | 2.06 | 4.9 | 3.1 |
 | N-3 | 5.08 | 1.98 | 9.5 | 7.6 |
 | N-4 | 7.41 | 2.03 | 17.1 | 14.9 |
@@ -36,7 +36,7 @@ All values are in %. Each is the mean over seeds of the mean over random calibra
 
 ## What I did
 
-- **Data.** Per-case predicted probabilities of the model in [2] from five trained seeds, with no retraining and no new simulation. The cases cover three groups:
+- **Data.** Per-case predicted probabilities of the model in [2] from five trained seeds, with no retraining and no new simulation. `tools/` documents the export; it needs the model code, which is not included. The cases cover three groups:
   - the main layer: training topologies, new operating points;
   - five single-outage topologies left out of training;
   - 165–199 random topologies in each of the N-2 to N-6 layers.
@@ -82,5 +82,5 @@ uv run pytest                 # quantile edge cases, miss-rate bounds on synthet
 ## References
 
 [1] A. Alcántara and S. Chatzivasileiadis, "Trustworthiness layer for foundation models in power systems: Application to N-k contingency screening," arXiv:2602.07995, 2026.
-[2] Y. Li, T. Xiao, S. Huang, and Y. Chen, "Transient stability assessment from generator-side PMU responses: A physically grounded set-based model and its applicability boundaries," manuscript, 2026.
+[2] Y. Li, T. Xiao, S. Huang, and Y. Chen, "Transient stability assessment from generator-side PMU responses: A physically grounded set-based model and its applicability boundaries," under review at *IEEE Transactions on Power Systems*, 2026.
 [3] A. N. Angelopoulos, S. Bates, A. Fisch, L. Lei, and T. Schuster, "Conformal risk control," in *Proc. ICLR*, 2024.
